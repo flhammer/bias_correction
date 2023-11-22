@@ -3,6 +3,7 @@ import xarray as xr
 from scipy.interpolate import griddata
 from tqdm import tqdm
 from typing import Tuple
+import pyproj
 
 
 def recompute_coordinates_on_unet_output(
@@ -27,11 +28,24 @@ def recompute_coordinates_on_unet_output(
         ('y',),
         unet_dem_input.coords['y'].data[y_min:y_max]
     )
-    unet_output_with_coordinates = unet_output_with_coordinates.rio.write_crs(epsg)
+    unet_output_with_coordinates = unet_output_with_coordinates.rio.write_crs(
+        epsg)
     return unet_output_with_coordinates
 
 
-def get_arome_interpolated(arome_data:xr.Dataset, target_dem:xr.DataArray) -> xr.Dataset:
+def compute_epsg_2154(arome: xr.Dataset):
+    gps_to_l93 = pyproj.Transformer.from_crs(4324, 2154, always_xy=True)
+    lon = arome.LON.isel(time=0).values.ravel()
+    lat = arome.LAT.isel(time=0).values.ravel()
+    shape_ini = arome.LAT.isel(time=0).values.shape
+    x, y = np.array(list(gps_to_l93.itransform(
+        np.array([lon, lat]).swapaxes(0, 1)))).swapaxes(0, 1)
+    x_var = (("yy", "xx"), x.reshape(*shape_ini))
+    y_var = (("yy", "xx"), y.reshape(*shape_ini))
+    return x_var, y_var
+
+
+def get_arome_interpolated(arome_data: xr.Dataset, target_dem: xr.DataArray) -> xr.Dataset:
     arome_data['u'] = np.sin(np.deg2rad(arome_data.Wind_DIR)) * arome_data.Wind
     arome_data['v'] = np.cos(np.deg2rad(arome_data.Wind_DIR)) * arome_data.Wind
 
@@ -101,8 +115,10 @@ def get_arome_downscaled_direction_vectorized(arome_interpolated, unet_output):
     angles = xr.DataArray(np.arange(0, size_angles, 1), dims=("angle",))
     angles = angles.expand_dims(
         dim={"x": size_x, "y": size_y, "time": size_t})
-    direction = arome_interpolated['dir'].expand_dims(dim={"angle": size_angles})
-    windspeed = arome_interpolated['windspeed'].expand_dims(dim={"angle": size_angles})
+    direction = arome_interpolated['dir'].expand_dims(
+        dim={"angle": size_angles})
+    windspeed = arome_interpolated['windspeed'].expand_dims(
+        dim={"angle": size_angles})
     match_matrix = rounded_dir == angles
     # remarquablement rapide...
     dir_corr = (
@@ -126,13 +142,14 @@ def get_arome_downscaled_direction_loop(arome_interpolated, unet_output):
     for angle in tqdm(range(size_angles)):
         dir_corr = xr.where(
             rounded_dir == angle,
-            np.mod(arome_interpolated.dir - unet_output.alpha.isel(angle=angle), 360),
+            np.mod(arome_interpolated.dir -
+                   unet_output.alpha.isel(angle=angle), 360),
             dir_corr
         )
     return dir_corr
 
 
-def get_arome_downscaled_loop(arome_interpolated:xr.Dataset, unet_output:xr.Dataset) -> Tuple[xr.DataArray, xr.DataArray]:
+def get_arome_downscaled_loop(arome_interpolated: xr.Dataset, unet_output: xr.Dataset) -> Tuple[xr.DataArray, xr.DataArray]:
     """
     une option: vu que c'est très très long
     traiter un maximum de temps en même temps
@@ -152,12 +169,14 @@ def get_arome_downscaled_loop(arome_interpolated:xr.Dataset, unet_output:xr.Data
     for angle in tqdm(range(size_angles)):
         dir_corr = xr.where(
             rounded_dir == angle,
-            np.mod(arome_interpolated.dir - unet_output.alpha.isel(angle=angle), 360),
+            np.mod(arome_interpolated.dir -
+                   unet_output.alpha.isel(angle=angle), 360),
             dir_corr
         )
         windspeed_corr = xr.where(
             rounded_dir == angle,
-            unet_output.acceleration.isel(angle=angle)*arome_interpolated.windspeed,
+            unet_output.acceleration.isel(
+                angle=angle)*arome_interpolated.windspeed,
             windspeed_corr
         )
     return (windspeed_corr, dir_corr)
