@@ -170,7 +170,8 @@ def get_arome_downscaled_loop(arome_interpolated: xr.Dataset, unet_output: xr.Da
         dir_corr = xr.where(
             rounded_dir == angle,
             np.mod(arome_interpolated.dir -
-                   unet_output.alpha.isel(angle=angle), 360),
+                   np.rad2deg(unet_output.alpha.isel(angle=angle)),
+                   360),
             dir_corr
         )
         windspeed_corr = xr.where(
