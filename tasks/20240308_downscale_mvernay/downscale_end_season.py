@@ -1,11 +1,14 @@
-import rioxarray
-import os
-import xarray as xr
-import numpy as np
+# sxcen
+
 import gc
+import os
 
-from bias_correction.postprocessing.arome_interpolation import get_arome_downscaled_loop, get_arome_interpolated, compute_epsg_2154
+import numpy as np
+import rioxarray
+import xarray as xr
 
+from bias_correction.postprocessing.arome_interpolation import (
+    compute_epsg_2154, get_arome_downscaled_loop, get_arome_interpolated)
 
 previous_arome_dir="/cnrm/mrns/users/NO_SAVE/merzisenh/extraction_matthieu_v_2021/HendrixExtraction_2023_11_29_11_ID_1a9b1/alp/"
 arome_dir="/cnrm/mrns/users/NO_SAVE/merzisenh/extraction_matthieu_v_2021/HendrixExtraction_2024_02_07_00_ID_0e087/alp/"
