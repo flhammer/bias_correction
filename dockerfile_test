@@ -1,0 +1,24 @@
+FROM tensorflow/tensorflow:2.10.0-gpu
+
+# Create a new user with the same UID and GID as the host user
+ARG UID
+ARG GID
+RUN addgroup --gid $GID user
+RUN adduser --disabled-password --gecos '' --uid $UID --gid $GID --home /app user
+RUN chown user /app
+
+# Switch to the new user
+USER user
+
+ENV PATH=/app/.local/bin:$PATH
+
+RUN mkdir /app/tmp
+COPY requirements.txt /app/tmp
+
+RUN mkdir /app/data
+RUN mkdir /app/code
+
+RUN pip install --upgrade pip
+RUN pip install --no-cache-dir -r /app/tmp/requirements.txt
+
+WORKDIR /app/code
