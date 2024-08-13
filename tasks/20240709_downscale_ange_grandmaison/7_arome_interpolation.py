@@ -82,59 +82,58 @@ unet_output = xr.open_dataset(pj(data_dir, "dem_grandmaison_corrections.nc"))
 target_dem = xr.open_dataset(pj(data_dir, "dem_grandmaison.nc"))
 
 
-# --------------------- querying wind data ---------------------------------------
-
-arome = xr.open_dataset(pj(data_dir, "arome_wind", "uv_2019_2020.nc"))
-arome
-#
-# --------------------- begin processing   ---------------------------------------
-
-u_arome = arome.u
-v_arome = arome.v
-
-u_arome = assign_2154_coords(u_arome)
-v_arome = assign_2154_coords(v_arome)
-
-for year, month in [
-    (2019, 8),
-    (2019, 9),
-    (2019, 10),
-    (2019, 11),
-    (2019, 12),
-    (2020, 1),
-    (2020, 1),
-    (2020, 2),
-    (2020, 3),
-    (2020, 4),
-    (2020, 5),
-    (2020, 6),
-    (2020, 7),
-]:
-    time_range = slice(
-        datetime(year, month, 1),
-        datetime(year, (month + 1) % 12, 1) - timedelta(hours=1),
-    )
-    u_monthly = u_arome.sel(time=time_range)
-    v_monthly = v_arome.sel(time=time_range)
-    interpolated = get_interpolated_wind(
-        u_monthly, v_monthly, u_arome.x, u_arome.y, target_dem
-    )
-    interpolated.to_netcdf(
-        pj(
-            data_dir,
-            "grandmaison",
-            "interpolated",
-            f"wind_interpolation_{year}_{month}.nc",
+def process(year_to_process):
+    # --------------------- querying wind data ---------------------------------------
+    arome = xr.open_dataset(pj(data_dir, "arome_wind", "uv_2019_2020.nc"))
+    # --------------------- begin processing   ---------------------------------------
+    u_arome = arome.u
+    v_arome = arome.v
+    u_arome = assign_2154_coords(u_arome)
+    v_arome = assign_2154_coords(v_arome)
+    for year, month in [
+        (year_to_process, 8),
+        (year_to_process, 9),
+        (year_to_process, 10),
+        (year_to_process, 11),
+        (year_to_process, 12),
+        (year_to_process + 1, 1),
+        (year_to_process + 1, 1),
+        (year_to_process + 1, 2),
+        (year_to_process + 1, 3),
+        (year_to_process + 1, 4),
+        (year_to_process + 1, 5),
+        (year_to_process + 1, 6),
+        (year_to_process + 1, 7),
+    ]:
+        time_range = slice(
+            datetime(year, month, 1),
+            datetime(year, (month + 1) % 12, 1) - timedelta(hours=1),
         )
-    )
-    downscaled = compute_downscaled(interpolated.u, interpolated.v, unet_output)
-    downscaled.to_netcdf(
-        pj(
-            data_dir,
-            "grandmaison",
-            "downscaled",
-            f"wind_downscaling_{year}_{month}.nc",
+        u_monthly = u_arome.sel(time=time_range)
+        v_monthly = v_arome.sel(time=time_range)
+        interpolated = get_interpolated_wind(
+            u_monthly, v_monthly, u_arome.x, u_arome.y, target_dem
         )
-    )
-    del interpolated, downscaled, u_monthly, v_monthly
-    gc.collect()
+        interpolated.to_netcdf(
+            pj(
+                data_dir,
+                "grandmaison",
+                "interpolated",
+                f"wind_interpolation_{year}_{month}.nc",
+            )
+        )
+        downscaled = compute_downscaled(interpolated.u, interpolated.v, unet_output)
+        downscaled.to_netcdf(
+            pj(
+                data_dir,
+                "grandmaison",
+                "downscaled",
+                f"wind_downscaling_{year}_{month}.nc",
+            )
+        )
+        del interpolated, downscaled, u_monthly, v_monthly
+        gc.collect()
+
+
+for year_to_process in [2021, 2022, 2023]:
+    process(year_to_process)
