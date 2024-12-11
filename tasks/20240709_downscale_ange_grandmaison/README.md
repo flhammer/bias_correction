@@ -19,6 +19,7 @@ En adaptant les scripts ci-dessous il devrait être possible de faire des downsc
 - `6_prepare_data.py` c'est pour lire les données modèles dans nos bases en utilisant un code que j'ai développé par ailleurs celà ne vous intéresse pas.
 - `7_arome_downscaling.py`
 	- interpolation d'arome à la résolution visée (en utilisant une triangulation de Delaunay) puis application des correction de Devine aux champs de vent interpolés
+	- si on traite des grandes séries temporelles, le code est assez rapide par contre il consomme une grande quantité de mémoire vive il aurait du mal à tourner sur un PC perso!
 	- on a besoin d'un dataset de vent (arome dans le code) qui a des variables `u` et `v` (deux composantes du vent), dans le code on le passe en epsg:2154 car c'est le système de coordonnées du DEM
 	- note j'ai réécrit la fonction d'interpolation (`get_interpolated_wind`) afin de calculer les coefficients d'interpolation une seule fois et les appliquer à chaque pas de temps (ils ne dépendent pas du temps)
 
