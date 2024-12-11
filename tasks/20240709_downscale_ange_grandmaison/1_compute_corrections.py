@@ -1,6 +1,5 @@
 # source: https://git.meteo.fr/cnrm-cen/louisletoumelin/devine_tutorial/-/blob/master/Tutorial_Pre_Computed_Method_1.ipynb
 
-import hvplot.xarray
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -12,6 +11,7 @@ from bias_correction.train.experience_manager import ExperienceManager
 from bias_correction.train.model import CustomModel
 from bias_correction.train.wind_utils import comp2dir, comp2speed, wind2comp
 from bias_correction.utils_bc.context_manager import timer_context
+
 
 config["use_scaling"] = False
 config["type_of_output"] = "map_speed_alpha" # The outputs of DEVINE will be a map for speed and a map for angular deviations ("alpha")
@@ -83,5 +83,3 @@ with timer_context("Save results"):
     encoding = {"acceleration": {"zlib": True, "complevel": 3},
                 "alpha": {"zlib": True, "complevel": 3}}
     ds.to_netcdf(save_path, encoding=encoding) #type:ignore
-
-# TODO: il faut réattacher les coordonnées, mais Ange ne nous a pas donné le CRS |-(

@@ -33,17 +33,17 @@ dem = xr.open_dataset(pj(data_dir, "eaudolle_large.nc")).rio.write_crs(epsg)
 dem = dem.Band1
 dem
 
-downscaled = xr.open_dataset(pj(data_dir, "wind_downscaling_2019_12.nc"))
+downscaled = xr.open_dataset(pj(data_dir, "downscaled_2020_1_subset.nc"))
 downscaled.rio.set_crs("EPSG:2154", inplace=True)
 downscaled = downscaled.rio.write_crs("EPSG:2154")
 
-interpolated = xr.open_dataset(pj(data_dir, "wind_interpolation_2019_12.nc"))
+interpolated = xr.open_dataset(pj(data_dir, "interpolated_2020_1_subset.nc"))
 interpolated.rio.set_crs("EPSG:2154", inplace=True)
 interpolated = interpolated.rio.write_crs("EPSG:2154")
 
 
-arome = xr.open_dataset(pj(data_dir, "uv_2019_2020.nc"))
-# arome.rio.set_crs("EPSG:2154", inplace=True)
+arome = xr.open_dataset(pj(data_dir, "wind_alp_arome_2019_2020.nc"))
+arome.rio.set_crs("EPSG:2154", inplace=True)
 
 
 def attach_epsg2154(array):
@@ -58,9 +58,10 @@ def attach_epsg2154(array):
 
 arome = attach_epsg2154(arome)
 
-arome_raw = arome.isel(time=0)
-arome_interp = interpolated.isel(time=0)
-arome_down = downscaled.isel(time=0)
+
+arome_raw = arome.sel(time="2020-01-01", step="6h")
+arome_interp = interpolated.sel(time="2020-01-01", step="6h")
+arome_down = downscaled.sel(time="2020-01-01", step="6h")
 
 
 arome_down["u"] = np.sin(np.deg2rad(arome_down.direction)) * arome_down.force
@@ -76,7 +77,6 @@ dem.plot(ax=ax_all, levels=20)
 # x0 = 0.95e6
 # y0 = 6.44e6
 # add_boundaries_to_plot(ax, **get_subdomain(x0, y0))
-
 ax_all.quiver(
     arome_raw.x.values,
     arome_raw.y.values,
@@ -85,10 +85,10 @@ ax_all.quiver(
     scale=80,
 )
 
-# fm.close_all()
+fm.close_all()
 
 
-subdomain = get_subdomain(0.94e6, 6.455e6)
+subdomain = {"minx": 9.45e5, "maxx": 9.46e5, "miny": 6.425e6, "maxy": 6.45e6}
 # visualise subdomain on exiting plot
 add_boundaries_to_plot(ax_all, **subdomain)
 
@@ -96,8 +96,20 @@ add_boundaries_to_plot(ax_all, **subdomain)
 fig, ax = fm.create_new()
 interp_sub = arome_interp.rio.clip_box(**subdomain)  # .isel(time=0)
 down_sub = arome_down.rio.clip_box(**subdomain)  # .isel(time=0)
-down_sub
 x, y = np.meshgrid(interp_sub.x.values, interp_sub.y.values)
 dem.rio.clip_box(**subdomain).plot(ax=ax)
 ax.quiver(x, y, interp_sub.u.values, interp_sub.v.values)
 ax.quiver(x, y, down_sub.u.values, down_sub.v.values, color="green")
+ax.quiver(arome_raw.x, arome_raw.y, arome_raw.u.values, arome_raw.v.values, color="red")
+
+domain = {"minx": 9.3e5, "maxx": 9.6e5, "miny": 6.445e6, "maxy": 6.475e6}
+# nouvelle approche
+fig, ax = fm.create_new()
+interp_sub = arome_interp.isel(x=slice(0, 1049, 20), y=slice(0, 1065, 20))
+down_sub = arome_down.isel(x=slice(0, 1049, 20), y=slice(0, 1065, 20))
+x, y = np.meshgrid(interp_sub.x.values, interp_sub.y.values)
+dem.rio.clip_box(**domain).plot(ax=ax)
+ax.quiver(x, y, interp_sub.u.values, interp_sub.v.values)
+ax.quiver(x, y, down_sub.u.values, down_sub.v.values, color="green")
+# ax.quiver(arome_raw.x, arome_raw.y, arome_raw.u.values, arome_raw.v.values, color="red", scale=50)
+ax.quiver(arome_raw.x, arome_raw.y, arome_raw.u.values, arome_raw.v.values, color="red")

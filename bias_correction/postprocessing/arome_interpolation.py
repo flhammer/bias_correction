@@ -268,13 +268,13 @@ def get_arome_downscaled_loop(
     return (windspeed_corr, dir_corr)
 
 
-def force_dir_from_u_v(u,v):
+def force_dir_from_u_v(u, v):
     force = np.sqrt(u ** 2 + v ** 2)
     direction = np.arcsin(u / force)
     direction = xr.where(v < 0, np.pi - direction, direction)
     direction = xr.where(direction < 0, 2 * np.pi + direction, direction)
     direction = np.rad2deg(direction)
-    return force,direction
+    return force, direction
 
 
 def get_downscaled_wind(
@@ -282,16 +282,17 @@ def get_downscaled_wind(
 ) -> Tuple[xr.DataArray, xr.DataArray]:
     rounded_dir = np.mod(np.round(direction, 0), 360)
     size_t = force.time.shape[0]
+    size_s = force.step.shape[0]
     size_y = unet_output.y.shape[0]
     size_x = unet_output.x.shape[0]
     size_angles = unet_output.sizes["angle"]
     dir_corr = xr.DataArray(
-        data=np.zeros((size_x, size_y, size_t), dtype="float32"),
-        dims=("x", "y", "time"),
+        data=np.zeros((size_x, size_y, size_t, size_s), dtype="float32"),
+        dims=("x", "y", "time", "step"),
     )
     force_corr = xr.DataArray(
-        data=np.zeros((size_x, size_y, size_t), dtype="float32"),
-        dims=("x", "y", "time"),
+        data=np.zeros((size_x, size_y, size_t, size_s), dtype="float32"),
+        dims=("x", "y", "time", "step"),
     )
     for angle in tqdm(range(size_angles)):
         dir_corr = xr.where(
@@ -308,4 +309,3 @@ def get_downscaled_wind(
             force_corr,
         )
     return (force_corr, dir_corr)
-

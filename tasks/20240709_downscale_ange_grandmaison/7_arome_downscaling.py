@@ -42,30 +42,38 @@ def get_interpolated_wind(u, v, x, y, target_dem):
     interpolator = DelaunayFixGridsInterpolator(x, y, target_x, target_y)
     interpolator.compute_interpolation_coeffs()
     size_t = u.time.shape[0]
+    size_s = u.step.shape[0]
     size_y = target_dem.y.shape[0]
     size_x = target_dem.x.shape[0]
     wind_interpolated = xr.Dataset(
         data_vars=dict(
             u=(
-                ["time", "y", "x"],
-                np.zeros((size_t, size_y, size_x), dtype=np.float32),
+                ["time", "step", "y", "x"],
+                np.zeros((size_t, size_s, size_y, size_x), dtype=np.float32),
             ),
             v=(
-                ["time", "y", "x"],
-                np.zeros((size_t, size_y, size_x), dtype=np.float32),
+                ["time", "step", "y", "x"],
+                np.zeros((size_t, size_s, size_y, size_x), dtype=np.float32),
             ),
         ),
         coords=dict(
             x=(["x"], target_dem.x.data),
             y=(["y"], target_dem.y.data),
             time=(["time"], u.time.data),
+            step=(["step"], u.step.data),
+            valid_time=(["time", "step"], u.valid_time.data),
         ),
     )
     for time in tqdm(u.time):
-        u_interp = interpolator.compute_interpolated_values_on_target(u.sel(time=time))
-        v_interp = interpolator.compute_interpolated_values_on_target(v.sel(time=time))
-        wind_interpolated.u.loc[dict(time=time)] = u_interp
-        wind_interpolated.v.loc[dict(time=time)] = v_interp
+        for step in u.step:
+            u_interp = interpolator.compute_interpolated_values_on_target(
+                u.sel(time=time, step=step)
+            )
+            v_interp = interpolator.compute_interpolated_values_on_target(
+                v.sel(time=time, step=step)
+            )
+            wind_interpolated.u.loc[dict(time=time, step=step)] = u_interp
+            wind_interpolated.v.loc[dict(time=time, step=step)] = v_interp
     return wind_interpolated
 
 
@@ -76,15 +84,28 @@ def compute_downscaled(u_interp, v_interp, unet_output):
     return downscaled_wind
 
 
+def next_month(year, month):
+    if month == 12:
+        return (year + 1, 1)
+    return (year, month + 1)
+
+
 # --------------------- generic data ---------------------------------------------
 data_dir = "/home/merzisenh/NO_SAVE/bias_correction_data"
 unet_output = xr.open_dataset(pj(data_dir, "dem_grandmaison_corrections.nc"))
 target_dem = xr.open_dataset(pj(data_dir, "dem_grandmaison.nc"))
 
 
+year_to_process = 2022
 def process(year_to_process):
     # --------------------- querying wind data ---------------------------------------
-    arome = xr.open_dataset(pj(data_dir, "arome_wind", "uv_2019_2020.nc"))
+    arome = xr.open_dataset(
+        pj(
+            data_dir,
+            "arome_wind",
+            f"wind_alp_arome_{year_to_process}_{year_to_process +1}.nc",
+        )
+    )
     # --------------------- begin processing   ---------------------------------------
     u_arome = arome.u
     v_arome = arome.v
@@ -107,7 +128,7 @@ def process(year_to_process):
     ]:
         time_range = slice(
             datetime(year, month, 1),
-            datetime(year, (month + 1) % 12, 1) - timedelta(hours=1),
+            datetime(*next_month(year, month), 1) - timedelta(hours=1),
         )
         u_monthly = u_arome.sel(time=time_range)
         v_monthly = v_arome.sel(time=time_range)
@@ -135,5 +156,19 @@ def process(year_to_process):
         gc.collect()
 
 
+
 for year_to_process in [2021, 2022, 2023]:
     process(year_to_process)
+
+
+year = 2019
+month = 10
+
+interp = xr.open_dataset(
+    pj(
+        data_dir,
+        "grandmaison",
+        "interpolated",
+        f"wind_interpolation_{year}_{month}.nc",
+    )
+)
