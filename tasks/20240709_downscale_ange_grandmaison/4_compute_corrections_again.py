@@ -1,10 +1,10 @@
 # dezm
 # source: https://git.meteo.fr/cnrm-cen/louisletoumelin/devine_tutorial/-/blob/master/Tutorial_Pre_Computed_Method_1.ipynb
 
-import numpy as np
 import pandas as pd
 import tensorflow as tf
 import xarray as xr
+import numpy as np
 
 from bias_correction.config.config_custom_devine import config
 from bias_correction.train.dataloader import CustomDataHandler
@@ -12,21 +12,27 @@ from bias_correction.train.experience_manager import ExperienceManager
 from bias_correction.train.model import CustomModel
 from bias_correction.train.wind_utils import comp2dir, comp2speed, wind2comp
 from bias_correction.utils_bc.context_manager import timer_context
+from bias_correction.dem import dem_txt_to_numpy
 
 config["use_scaling"] = False
-config[
-    "type_of_output"
-] = "map_speed_alpha"  # The outputs of DEVINE will be a map for speed and a map for angular deviations ("alpha")
-config[
-    "unet_path"
-] = "../data/date_21_12_2021_name_simu_classic_all_low_epochs_0_model_UNet/"
+config["type_of_output"] = (
+    "map_speed_alpha"  # The outputs of DEVINE will be a map for speed and a map for angular deviations ("alpha")
+)
+# @Louis, The only change I made to the config was to adjust the following path.
+config["unet_path"] = (
+    "coeffs_unet/date_21_12_2021_name_simu_classic_all_low_epochs_0_model_UNet/"
+)
 batch_size = (
     1  # Batch size control how many maps are sent to the GPU at once for prediction
 )
 
 
 def process(demdataarray):
-    dem_array = np.expand_dims(demdataarray.values, axis=-1)
+    # @Louis, the process function expects an xarray dataset, but I am providing a numpy array.
+    # Hence, I changed the original demdataarray.values to demdataarray.
+    # No other changes were made.
+    dem_array = np.expand_dims(demdataarray, axis=-1)
+
     # Create topo_dict
     dict_topo_custom = {"custom": {"data": dem_array}}
     # Create time_series
@@ -57,20 +63,33 @@ def process(demdataarray):
     return results
 
 
-dem_path = "/app/data/dem_grandmaison_large.nc"
+# @Louis, my understanding is that the following DEM was used during the DEVINE model training.
+# My goal is to make a prediction here and then directly compare it to the ARPS flow field.
+dem_path = "gaussiandem_N5451_dx30_xi800_sigma71_r000.txt"
+
+# @Louis, calls a helper function from the bias_correction.dem module, which simply returns a numpy array
+dem = dem_txt_to_numpy(dem_path)
 
 
-# ------------- dem has been cropped to avoid exception on patch dimensions ------------
-dem = xr.open_dataset(dem_path)
-dem = dem.band_data.isel(x=slice(3, -2))
-dem.to_netcdf(dem_path + "_cropped")
-# manuellement renommé en dem_path par la suite
-
-
+######
+# @ Louis, the following lines are commented out as we load the data from a text file and not NetCDF.
+# dem_path = "/app/data/dem_grandmaison_large.nc"
+#
+# # ------------- dem has been cropped to avoid exception on patch dimensions ------------
 # dem = xr.open_dataset(dem_path)
+# dem = dem.band_data.isel(x=slice(3, -2))
+# dem.to_netcdf(dem_path + "_cropped")
+# # manuellement renommé en dem_path par la suite
+#
+#
+# dem = xr.open_dataset(dem_path)
+######
 
+# @Louis, the process function above expected an xarray dataset, but I am passing a numpy array.
+# See the respective comment in the process function.
 result = process(dem)
 
+# @Louis, no changes were made past this point apart from adjusting the 'save_path' variable.
 # normalize
 with timer_context("results[0, :, :, :] = results[0, :, :, :]/3"):
     result[0, :, :, :] = result[0, :, :, :] / 3
@@ -80,7 +99,7 @@ with timer_context("Change dtype"):
     result[0, :, :, :] = np.float16(result[0, :, :, :])
     result[1, :, :, :] = np.float16(result[1, :, :, :])
 
-save_path = "/app/data/dem_grandmaison_large_corrections.nc"
+save_path = "results.nc"
 
 with timer_context("Save results"):
     ds = xr.Dataset(
